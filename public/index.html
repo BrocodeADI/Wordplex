@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wordplex</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="desktop">
+        
+        <!-- Lobby Window -->
+        <div id="lobby-window" class="window" style="top: 100px; left: 50px;">
+            <div class="title-bar">
+                <div class="traffic-lights">
+                    <div class="light red close-btn"></div>
+                    <div class="light yellow min-btn" data-target="lobby-window"></div>
+                    <div class="light green max-btn"></div>
+                </div>
+                <div class="title-text">wordplex</div>
+            </div>
+            <div class="window-content">
+                <div id="lobby-screen">
+                    <div class="input-group">
+                        <label for="player-name">Player Name</label>
+                        <input type="text" id="player-name" placeholder="Enter your name" maxlength="15">
+                    </div>
+                    <div class="tabs">
+                        <button class="tab active" onclick="switchTab('join')">Join</button>
+                        <button class="tab" onclick="switchTab('create')">Create</button>
+                    </div>
+                    <div id="join-tab" class="tab-content active">
+                        <div class="input-group">
+                            <label for="room-code">Room Code</label>
+                            <input type="text" id="room-code" placeholder="Enter 6-char code" maxlength="6">
+                        </div>
+                        <button class="btn primary" onclick="joinRoom()">Join Room</button>
+                    </div>
+                    <div id="create-tab" class="tab-content">
+                        <div class="input-group">
+                            <label for="total-rounds">Total Rounds</label>
+                            <input type="number" id="total-rounds" value="3" min="1" max="10">
+                        </div>
+                        <div class="input-group">
+                            <label for="time-per-round">Time per round (sec)</label>
+                            <input type="number" id="time-per-round" value="60" min="10" max="300">
+                        </div>
+                        <button class="btn primary" onclick="createRoom()">Generate Room</button>
+                    </div>
+                </div>
+                <div id="waiting-screen" class="hidden">
+                    <h2>Room: <span id="display-room-code"></span></h2>
+                    <p>Players connected:</p>
+                    <ul id="players-list"></ul>
+                    <div id="host-controls" class="hidden">
+                        <button class="btn primary" onclick="startGame()">Start Game</button>
+                    </div>
+                    <p id="waiting-message">Waiting for host to start...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Window -->
+        <div id="game-window" class="window hidden" style="top: 50px; left: 350px;">
+            <div class="title-bar">
+                <div class="traffic-lights">
+                    <div class="light red close-btn"></div>
+                    <div class="light yellow min-btn" data-target="game-window"></div>
+                    <div class="light green max-btn"></div>
+                </div>
+                <div class="title-text">game board - <span id="top-room-code">------</span></div>
+            </div>
+            <div class="window-content game-main">
+                <header class="top-bar">
+                    <div class="top-center" id="round-tracker">Round 1/10</div>
+                    <div class="top-right">Time: <span id="timer">90</span></div>
+                </header>
+                <div id="board-container">
+                    <div id="board"></div>
+                </div>
+                <div id="keyboard-container">
+                    <div class="keyboard-row">
+                        <button class="key" data-key="Q">Q</button>
+                        <button class="key" data-key="W">W</button>
+                        <button class="key" data-key="E">E</button>
+                        <button class="key" data-key="R">R</button>
+                        <button class="key" data-key="T">T</button>
+                        <button class="key" data-key="Y">Y</button>
+                        <button class="key" data-key="U">U</button>
+                        <button class="key" data-key="I">I</button>
+                        <button class="key" data-key="O">O</button>
+                        <button class="key" data-key="P">P</button>
+                    </div>
+                    <div class="keyboard-row">
+                        <div class="spacer half"></div>
+                        <button class="key" data-key="A">A</button>
+                        <button class="key" data-key="S">S</button>
+                        <button class="key" data-key="D">D</button>
+                        <button class="key" data-key="F">F</button>
+                        <button class="key" data-key="G">G</button>
+                        <button class="key" data-key="H">H</button>
+                        <button class="key" data-key="J">J</button>
+                        <button class="key" data-key="K">K</button>
+                        <button class="key" data-key="L">L</button>
+                        <div class="spacer half"></div>
+                    </div>
+                    <div class="keyboard-row">
+                        <button class="key large" data-key="ENTER">ENTER</button>
+                        <button class="key" data-key="Z">Z</button>
+                        <button class="key" data-key="X">X</button>
+                        <button class="key" data-key="C">C</button>
+                        <button class="key" data-key="V">V</button>
+                        <button class="key" data-key="B">B</button>
+                        <button class="key" data-key="N">N</button>
+                        <button class="key" data-key="M">M</button>
+                        <button class="key large" data-key="BACKSPACE">⌫</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Window -->
+        <div id="status-window" class="window hidden" style="top: 50px; left: 750px;">
+            <div class="title-bar">
+                <div class="traffic-lights">
+                    <div class="light red close-btn"></div>
+                    <div class="light yellow min-btn" data-target="status-window"></div>
+                    <div class="light green max-btn"></div>
+                </div>
+                <div class="title-text">round status</div>
+            </div>
+            <div class="window-content right-panel">
+                <ul id="players-status-list" class="status-list"></ul>
+                <div id="host-controls-game" class="hidden">
+                    <button class="btn primary" onclick="startRound()">Start Round</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Window -->
+        <div id="chat-window" class="window hidden" style="top: 350px; left: 750px;">
+            <div class="title-bar">
+                <div class="traffic-lights">
+                    <div class="light red close-btn"></div>
+                    <div class="light yellow min-btn" data-target="chat-window"></div>
+                    <div class="light green max-btn"></div>
+                </div>
+                <div class="title-text">chat</div>
+            </div>
+            <div class="window-content chat-section">
+                <div id="chat-messages" class="chat-messages"></div>
+                <div class="chat-input">
+                    <input id="chat-text" type="text" placeholder="Message" maxlength="200" />
+                    <button class="btn primary" onclick="sendChat()">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- End of Round Modal -->
+        <div id="modal-overlay" class="hidden">
+            <div class="modal">
+                <div class="title-bar">
+                    <div class="traffic-lights">
+                        <div class="light red close-btn"></div>
+                        <div class="light yellow"></div>
+                        <div class="light green"></div>
+                    </div>
+                    <div class="title-text">alert</div>
+                </div>
+                <div class="window-content" style="text-align: center;">
+                    <h2 id="modal-title">Round Ended</h2>
+                    <p>The correct word was: <strong id="modal-word"></strong></p>
+                    <p id="modal-winner"></p>
+                    <div id="modal-host-controls" class="hidden" style="margin-top: 15px;">
+                        <button class="btn primary" onclick="nextRound()">Next Round</button>
+                    </div>
+                    <p id="modal-waiting-message" style="margin-top: 15px;">Waiting for host...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Desktop Dock -->
+        <nav id="dock">
+            <div class="dock-item" data-target="lobby-window" title="Lobby">L</div>
+            <div class="dock-item hidden" data-target="game-window" id="dock-game" title="Game Board">G</div>
+            <div class="dock-item hidden" data-target="status-window" id="dock-status" title="Status">S</div>
+            <div class="dock-item hidden" data-target="chat-window" id="dock-chat" title="Chat">C</div>
+        </nav>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
