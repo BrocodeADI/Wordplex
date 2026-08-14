@@ -1,6 +1,6 @@
 # Wordplex
 
-**🕹️ Play it live:** [https://wordplex.onrender.com](https://wordplex.onrender.com)
+**🕹️ Play it live:** [https://wordplex-adi.onrender.com/](https://wordplex-adi.onrender.com/)
 
 A real-time, multiplayer Wordle clone built with a beautiful retro macOS Aqua aesthetic. Create rooms, invite your friends, and race against the clock to guess the secret word!
 
