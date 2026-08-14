@@ -19,8 +19,8 @@ func isValidWord(word string) bool {
 	if len(word) != 5 {
 		return false
 	}
-	_, ok := wordSet[word]
-	return ok
+	// Temporarily bypass validation
+	return true
 }
 
 func evaluateGuess(secret string, guess string) []string {

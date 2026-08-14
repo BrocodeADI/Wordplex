@@ -365,4 +365,3 @@ func (r *Room) endRound(reason string) {
 
 	r.broadcastStateUpdate()
 }
-

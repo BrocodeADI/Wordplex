@@ -35,30 +35,66 @@ function switchTab(tab) {
 
 function showScreen(screenName) {
 	if (screenName === 'lobby') {
-		document.getElementById('lobby-window').classList.remove('hidden');
+		genieShow(document.getElementById('lobby-window'));
 		document.getElementById('lobby-screen').classList.remove('hidden');
 		document.getElementById('waiting-screen').classList.add('hidden');
-		windows.game.classList.add('hidden');
-		windows.status.classList.add('hidden');
-		windows.chat.classList.add('hidden');
+		genieHide(windows.game);
+		genieHide(windows.status);
+		genieHide(windows.chat);
 		document.querySelectorAll('.dock-item').forEach(d => {
 			if(d.dataset.target === 'lobby-window') d.classList.remove('hidden');
 			else d.classList.add('hidden');
 		});
 	} else if (screenName === 'waiting') {
-		document.getElementById('lobby-window').classList.remove('hidden');
+		genieShow(document.getElementById('lobby-window'));
 		document.getElementById('lobby-screen').classList.add('hidden');
 		document.getElementById('waiting-screen').classList.remove('hidden');
 	} else if (screenName === 'game') {
-		document.getElementById('lobby-window').classList.add('hidden');
-		windows.game.classList.remove('hidden', 'minimized');
-		windows.status.classList.remove('hidden', 'minimized');
-		windows.chat.classList.remove('hidden', 'minimized');
+		genieHide(document.getElementById('lobby-window'));
+		genieShow(windows.game);
+		genieShow(windows.status);
+		genieShow(windows.chat);
 		document.querySelectorAll('.dock-item').forEach(d => {
 			if(d.dataset.target === 'lobby-window') d.classList.add('hidden');
 			else d.classList.remove('hidden');
 		});
 	}
+}
+
+// --- Genie animation helpers ---
+// These ensure we never use display:none on .window elements, which would
+// destroy the rendering context and make clip-path animations impossible.
+
+function genieShow(win) {
+	if (!win) return;
+	// Already visible and not docked/minimizing — nothing to do.
+	if (!win.classList.contains('genie-docked') &&
+		!win.classList.contains('genie-minimizing')) return;
+	win.style.removeProperty('transform');
+	win.classList.remove('genie-docked', 'genie-minimizing');
+	setGenieDirection(win, win.id);
+	win.classList.add('genie-restoring');
+	win.addEventListener('animationend', function handler(e) {
+		if (e.animationName !== 'genie-in') return;
+		win.classList.remove('genie-restoring');
+		win.removeEventListener('animationend', handler);
+	});
+}
+
+function genieHide(win) {
+	if (!win) return;
+	// Already docked — nothing to do.
+	if (win.classList.contains('genie-docked')) return;
+	win.style.removeProperty('transform');
+	win.classList.remove('genie-restoring');
+	setGenieDirection(win, win.id);
+	win.classList.add('genie-minimizing');
+	win.addEventListener('animationend', function handler(e) {
+		if (e.animationName !== 'genie-out') return;
+		win.classList.remove('genie-minimizing');
+		win.classList.add('genie-docked');
+		win.removeEventListener('animationend', handler);
+	});
 }
 
 function connectWebSocket(onOpen) {
@@ -156,12 +192,20 @@ function handleMessage(msg) {
 			roundOver = false;
 			inputLocked = false;
 			document.getElementById('modal-overlay').classList.add('hidden');
+			document.getElementById('host-controls-game').classList.add('hidden'); // explicitly hide the start round button
 			document.getElementById('top-room-code').textContent = msg.roomCode;
 			document.getElementById('round-tracker').textContent = `Round ${msg.round}/${msg.totalRounds}`;
 			document.getElementById('timer').textContent = msg.timeLeft;
 			initBoard();
 			resetKeyboard();
 			showScreen('game');
+			// Bug 2 contributor: if focus was left inside the chat box (or any
+			// other input) from a prior action, the global keydown guard below
+			// would silently swallow every letter/ENTER press meant for the
+			// board. Force focus back to neutral ground when a round starts.
+			if (document.activeElement && document.activeElement !== document.body) {
+				document.activeElement.blur();
+			}
 			break;
 		case 'timer_tick':
 			document.getElementById('timer').textContent = msg.timeLeft;
@@ -193,9 +237,13 @@ function updateFromState(next) {
 		waitingHostControls.classList.toggle('hidden', !amHost);
 	}
 
+	// Bug 3 fix: this button is "start the NEXT round" — it must only ever be
+	// visible for the host, and only ever between rounds. Previously this only
+	// checked `amHost`, so every state_update while a round was in progress
+	// (guesses, timer, player list changes...) re-showed it mid-round.
 	const hostControlsGame = document.getElementById('host-controls-game');
 	if (hostControlsGame) {
-		hostControlsGame.classList.toggle('hidden', !amHost);
+		hostControlsGame.classList.toggle('hidden', !(amHost && !next.playing));
 	}
 
 	updateWaitingPlayers(next.players || []);
@@ -300,7 +348,8 @@ function resetKeyboard() {
 
 function handleKeyInput(key) {
 	if (roundOver || inputLocked) return;
-	if (document.getElementById('game-window').classList.contains('hidden') || document.getElementById('game-window').classList.contains('minimized')) return;
+	const gw = document.getElementById('game-window');
+	if (gw.classList.contains('genie-docked') || gw.classList.contains('genie-minimizing') || gw.classList.contains('hidden')) return;
 
 	if (key === 'ENTER') {
 		submitGuess();
@@ -337,6 +386,7 @@ function submitGuess() {
 	if (currentTile !== WORD_LENGTH) return;
 	if (!ws) return;
 	const guess = boardState[currentRow].join('');
+	console.log("Sending guess:", guess);
 	inputLocked = true;
 	ws.send(JSON.stringify({ type: 'submit_guess', guess }));
 }
@@ -421,8 +471,16 @@ function handleRoundEnd(msg) {
 }
 
 document.addEventListener('keydown', (e) => {
-	if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-	
+	// Bug 2 contributor: this used to bail out for *any* focused input/textarea
+	// anywhere on the page. That's too broad — it silently ate every keystroke
+	// (including ENTER) whenever, e.g., the chat box still had focus, making
+	// the board look completely unresponsive. Scope it to text-entry fields
+	// only; the on-screen keyboard buttons are <button> elements and are
+	// unaffected either way.
+	const tag = e.target.tagName;
+	const isTextEntry = (tag === 'INPUT' || tag === 'TEXTAREA') && e.target.type !== 'button';
+	if (isTextEntry) return;
+
 	const key = e.key.toUpperCase();
 	if (key === 'ENTER' || key === 'BACKSPACE') {
 		handleKeyInput(key);
@@ -469,7 +527,8 @@ document.querySelectorAll('.window').forEach(win => {
             if (!isDragging) return;
             win.style.left = `${e.clientX - offsetX}px`;
             win.style.top = `${e.clientY - offsetY}px`;
-            win.style.transform = 'none';
+            // Do NOT set inline transform here — it kills @keyframes animations
+            // because inline styles have higher specificity than class-based rules.
         });
 
         document.addEventListener('mouseup', () => {
@@ -479,24 +538,47 @@ document.querySelectorAll('.window').forEach(win => {
     
     const closeBtn = win.querySelector('.close-btn');
     const minBtn = win.querySelector('.min-btn');
-    
+
     if (closeBtn) closeBtn.addEventListener('click', () => {
-        win.classList.add('hidden');
+        genieHide(win);
     });
-    
+
     if (minBtn) minBtn.addEventListener('click', () => {
-        win.classList.add('minimized');
+        genieHide(win);
     });
 });
+
+function setGenieDirection(win, targetId) {
+    // Bias the clip-path funnel horizontally toward whichever dock icon this
+    // window will actually minimize/restore from, so the "slurp" reads as
+    // heading toward the dock instead of straight down the middle.
+    const dockItem = document.querySelector(`.dock-item[data-target="${targetId}"]`);
+    if (!dockItem) {
+        win.style.removeProperty('--genie-dx');
+        return;
+    }
+    const winRect = win.getBoundingClientRect();
+    const dockRect = dockItem.getBoundingClientRect();
+    const winCenterX = winRect.left + winRect.width / 2;
+    const dockCenterX = dockRect.left + dockRect.width / 2;
+    win.style.setProperty('--genie-dx', `${dockCenterX - winCenterX}px`);
+}
 
 document.querySelectorAll('.dock-item').forEach(item => {
     item.addEventListener('click', () => {
         const targetId = item.dataset.target;
         const targetWin = document.getElementById(targetId);
-        if (targetWin) {
-            targetWin.classList.remove('hidden', 'minimized');
-            targetWin.style.zIndex = ++zIndexCounter;
+        if (!targetWin) return;
+        targetWin.style.zIndex = ++zIndexCounter;
+
+        // Toggle: if window is docked or mid-minimize, restore it.
+        // If it's already visible, minimize it back into the dock.
+        const isDocked = targetWin.classList.contains('genie-docked') ||
+                         targetWin.classList.contains('genie-minimizing');
+        if (isDocked) {
+            genieShow(targetWin);
+        } else {
+            genieHide(targetWin);
         }
     });
 });
-

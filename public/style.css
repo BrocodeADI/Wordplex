@@ -42,29 +42,87 @@ body {
 .window {
     position: absolute;
     background-color: var(--window-bg);
-    border: 2px solid var(--border-color);
+    border: 2px solid #1c1c1c;
     border-radius: 8px 8px 0 0;
-    box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.1);
+    box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.2);
     display: flex;
     flex-direction: column;
     min-width: 300px;
     z-index: 10;
-    transition: transform 0.2s ease, opacity 0.2s ease;
+    /* No transition on transform — it fights @keyframes. We only want
+       keyframe-driven movement for the genie effect. */
+    transform-origin: bottom center;
+    will-change: transform, clip-path, opacity;
 }
 
-.window.minimized {
-    transform: scale(0) translate(0, 50vh) !important;
-    opacity: 0;
-    pointer-events: none;
+/* ------------------------------------------------------------------ */
+/* Genie minimize / restore keyframes                                  */
+/* ------------------------------------------------------------------ */
+@keyframes genie-out {
+  0%   { transform: scale(1, 1) translateY(0) translateX(0);
+         clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+         opacity: 1; }
+  15%  { transform: scale(0.98, 1.04) translateY(0) translateX(0);
+         clip-path: polygon(0% 0%, 100% 0%, 96% 100%, 4% 100%); }
+  35%  { transform: scale(0.7, 0.9) translateY(15%) translateX(var(--genie-dx, 0px));
+         clip-path: polygon(10% 0%, 90% 0%, 70% 100%, 30% 100%);
+         opacity: 1; }
+  60%  { transform: scale(0.35, 0.7) translateY(45%) translateX(var(--genie-dx, 0px));
+         clip-path: polygon(30% 0%, 70% 0%, 54% 100%, 46% 100%);
+         opacity: 0.9; }
+  85%  { transform: scale(0.12, 0.4) translateY(75%) translateX(var(--genie-dx, 0px));
+         clip-path: polygon(42% 0%, 58% 0%, 50.5% 100%, 49.5% 100%);
+         opacity: 0.5; }
+  100% { transform: scale(0.05, 0.15) translateY(95%) translateX(var(--genie-dx, 0px));
+         clip-path: polygon(48% 0%, 52% 0%, 50% 100%, 50% 100%);
+         opacity: 0; }
 }
 
-.window.hidden {
+@keyframes genie-in {
+  0%   { transform: scale(0.05, 0.15) translateY(95%) translateX(var(--genie-dx, 0px));
+         clip-path: polygon(48% 0%, 52% 0%, 50% 100%, 50% 100%);
+         opacity: 0; }
+  30%  { transform: scale(0.35, 0.7) translateY(45%) translateX(var(--genie-dx, 0px));
+         clip-path: polygon(30% 0%, 70% 0%, 54% 100%, 46% 100%);
+         opacity: 0.7; }
+  65%  { transform: scale(0.7, 0.9) translateY(15%) translateX(0);
+         clip-path: polygon(10% 0%, 90% 0%, 70% 100%, 30% 100%);
+         opacity: 1; }
+  100% { transform: scale(1, 1) translateY(0) translateX(0);
+         clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+         opacity: 1; }
+}
+
+/* Playing the minimize animation */
+.genie-minimizing {
+  animation: genie-out 0.6s cubic-bezier(0.32, 0.1, 0.67, 1) forwards !important;
+  pointer-events: none !important;
+}
+
+/* Playing the restore animation */
+.genie-restoring {
+  animation: genie-in 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) forwards !important;
+}
+
+/* Resting "docked" state — the window is fully invisible and non-interactive
+   but still in the DOM so we can animate OUT of this state.
+   display:none would destroy the rendering context and make genie-in impossible. */
+.genie-docked {
+  transform: scale(0.05, 0.15) translateY(95%) translateX(var(--genie-dx, 0px));
+  clip-path: polygon(48% 0%, 52% 0%, 50% 100%, 50% 100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Hard hide — only for elements that never need animation (internal screens,
+   modal overlay, host controls, etc.) */
+.hidden {
     display: none !important;
 }
 
 .title-bar {
-    background-color: var(--title-bg);
-    border-bottom: 2px solid var(--border-color);
+    background-color: #f5f4ed;
+    border-bottom: 2px solid #1c1c1c;
     border-radius: 6px 6px 0 0;
     display: flex;
     align-items: center;
@@ -128,7 +186,7 @@ body {
     width: 100%;
     padding: 8px;
     background-color: #fff;
-    border: 2px solid var(--border-color);
+    border: 2px solid #1c1c1c;
     font-family: 'Courier Prime', monospace;
     font-size: 14px;
     border-radius: 0;
@@ -142,21 +200,21 @@ body {
 .btn {
     padding: 10px 14px;
     background-color: #fff;
-    border: 2px solid var(--border-color);
+    border: 2px solid #1c1c1c;
     font-family: 'Courier Prime', monospace;
     font-weight: bold;
     cursor: pointer;
-    box-shadow: 2px 2px 0px rgba(0,0,0,1);
+    box-shadow: 4px 4px 0px #000;
     transition: all 0.1s;
 }
 
 .btn:active {
-    box-shadow: 0px 0px 0px rgba(0,0,0,1);
-    transform: translate(2px, 2px);
+    box-shadow: 0px 0px 0px #000;
+    transform: translate(4px, 4px);
 }
 
 .btn.primary {
-    background-color: var(--text-color);
+    background-color: #222;
     color: #fff;
 }
 
@@ -164,7 +222,7 @@ body {
 .tabs {
     display: flex;
     margin-bottom: 15px;
-    border-bottom: 2px solid var(--border-color);
+    border-bottom: 2px solid #1c1c1c;
 }
 .tab {
     flex: 1;
@@ -178,8 +236,8 @@ body {
     border-bottom: none;
 }
 .tab.active {
-    background-color: #fff;
-    border-color: var(--border-color);
+    background-color: #f5f4ed;
+    border-color: #1c1c1c;
     border-radius: 4px 4px 0 0;
 }
 .tab-content { display: none; }
@@ -341,9 +399,10 @@ body {
 }
 
 .dock-item {
-    width: 40px;
+    width: auto;
+    padding: 0 15px;
     height: 40px;
-    border: 2px solid var(--border-color);
+    border: 2px solid #1c1c1c;
     background-color: #fff;
     border-radius: 8px;
     display: flex;
@@ -351,7 +410,7 @@ body {
     align-items: center;
     font-weight: bold;
     font-family: 'Playfair Display', serif;
-    font-size: 20px;
+    font-size: 16px;
     cursor: pointer;
     transition: transform 0.1s;
     box-shadow: 2px 2px 0px rgba(0,0,0,1);
